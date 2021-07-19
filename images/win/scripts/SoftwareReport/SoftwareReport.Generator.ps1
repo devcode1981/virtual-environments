@@ -6,16 +6,11 @@ Import-Module (Join-Path $PSScriptRoot "SoftwareReport.Common.psm1") -DisableNam
 Import-Module (Join-Path $PSScriptRoot "SoftwareReport.Databases.psm1") -DisableNameChecking
 Import-Module (Join-Path $PSScriptRoot "SoftwareReport.Helpers.psm1") -DisableNameChecking
 Import-Module (Join-Path $PSScriptRoot "SoftwareReport.Tools.psm1") -DisableNameChecking
+Import-Module (Join-Path $PSScriptRoot "SoftwareReport.Java.psm1") -DisableNameChecking
+Import-Module (Join-Path $PSScriptRoot "SoftwareReport.WebServers.psm1") -DisableNameChecking
 Import-Module (Join-Path $PSScriptRoot "SoftwareReport.VisualStudio.psm1") -DisableNameChecking
 
 $markdown = ""
-
-if ($env:ANNOUNCEMENTS) {
-    $markdown += $env:ANNOUNCEMENTS
-    $markdown += New-MDNewLine
-    $markdown += "***"
-    $markdown += New-MDNewLine
-}
 
 $OSName = Get-OSName
 $markdown += New-MDHeader "$OSName" -Level 1
@@ -23,113 +18,129 @@ $markdown += New-MDHeader "$OSName" -Level 1
 $OSVersion = Get-OSVersion
 $markdown += New-MDList -Style Unordered -Lines @(
     "$OSVersion"
-    "Image Version: $env:ImageVersion"
+    "Image Version: $env:IMAGE_VERSION"
 )
 
 if (Test-IsWin19)
 {
     $markdown += New-MDHeader "Enabled windows optional features" -Level 2
     $markdown += New-MDList -Style Unordered -Lines @(
-        "Windows Subsystem for Linux"
+        "Windows Subsystem for Linux [WSLv1]"
     )
 }
 
 $markdown += New-MDHeader "Installed Software" -Level 2
 $markdown += New-MDHeader "Language and Runtime" -Level 3
-
-$markdown += New-MDList -Lines (Get-JavaVersionsList -DefaultVersion "1.8.0") -Style Unordered -NoNewLine
-$markdown += New-MDList -Style Unordered -Lines @(
-    (Get-PythonVersion),
-    (Get-RubyVersion),
+$markdown += New-MDList -Style Unordered -Lines (@(
+    (Get-BashVersion),
     (Get-GoVersion),
-    (Get-PHPVersion),
     (Get-JuliaVersion),
+    (Get-NodeVersion),
     (Get-PerlVersion),
-    (Get-NodeVersion)
+    (Get-PHPVersion),
+    (Get-PythonVersion),
+    (Get-RubyVersion)
+    ) | Sort-Object
 )
 
 $markdown += New-MDHeader "Package Management" -Level 3
-$markdown += New-MDList -Style Unordered -Lines @(
+$markdown += New-MDList -Style Unordered -Lines (@(
     (Get-ChocoVersion),
-    (Get-VcpkgVersion),
-    (Get-NPMVersion),
-    (Get-YarnVersion),
-    (Get-PipVersion),
-    (Get-CondaVersion),
-    (Get-RubyGemsVersion),
-    (Get-HelmVersion),
     (Get-ComposerVersion),
+    (Get-HelmVersion),
+    (Get-CondaVersion),
+    (Get-NPMVersion),
     (Get-NugetVersion),
-    (Get-PipxVersion)
+    (Get-PipxVersion),
+    (Get-PipVersion),
+    (Get-RubyGemsVersion),
+    (Get-VcpkgVersion),
+    (Get-YarnVersion)
+    ) | Sort-Object
 )
+$markdown += New-MDHeader "Environment variables" -Level 4
+$markdown += Build-PackageManagementEnvironmentTable | New-MDTable
+$markdown += New-MDNewLine
 
 $markdown += New-MDHeader "Project Management" -Level 3
-$markdown += New-MDList -Style Unordered -Lines @(
+$markdown += New-MDList -Style Unordered -Lines (@(
     (Get-AntVersion),
-    (Get-MavenVersion),
     (Get-GradleVersion),
+    (Get-MavenVersion),
     (Get-SbtVersion)
+    ) | Sort-Object
 )
 
 $markdown += New-MDHeader "Tools" -Level 3
-$markdown += New-MDList -Style Unordered -Lines @(
+$markdown += New-MDList -Style Unordered -Lines (@(
+    (Get-7zipVersion),
     (Get-AzCopyVersion),
     (Get-BazelVersion),
     (Get-BazeliskVersion),
+    (Get-BicepVersion),
+    (Get-CabalVersion),
     (Get-CMakeVersion),
     (Get-CodeQLBundleVersion),
-    (Get-RVersion),
     (Get-DockerVersion),
     (Get-DockerComposeVersion),
+    (Get-GHCVersion),
     (Get-GitVersion),
     (Get-GitLFSVersion),
     (Get-GoogleCloudSDKVersion),
     (Get-InnoSetupVersion),
     (Get-JQVersion),
-    (Get-KubectlVersion),
     (Get-KindVersion),
-    (Get-MinGWVersion),
+    (Get-KubectlVersion),
     (Get-MercurialVersion),
-    (Get-NSISVersion),
+    (Get-MinGWVersion),
     (Get-NewmanVersion),
+    (Get-NSISVersion),
     (Get-OpenSSLVersion),
     (Get-PackerVersion),
     (Get-PulumiVersion),
-    (Get-SVNVersion),
-    (Get-GHCVersion),
-    (Get-CabalVersion),
+    (Get-RVersion),
     (Get-StackVersion),
+    (Get-SVNVersion),
+    (Get-VSWhereVersion),
+    (Get-SwigVersion),
     (Get-WinAppDriver),
     (Get-ZstdVersion),
-    (Get-VSWhereVersion),
-    (Get-7zipVersion),
     (Get-YAMLLintVersion)
+    ) | Sort-Object
 )
 
 $markdown += New-MDHeader "CLI Tools" -Level 3
-$markdown += New-MDList -Style Unordered -Lines @(
-    (Get-AzureCLIVersion),
-    (Get-AzureDevopsExtVersion),
-    (Get-AZDSVersion),
+$markdown += New-MDList -Style Unordered -Lines (@(
+    (Get-AlibabaCLIVersion),
     (Get-AWSCLIVersion),
     (Get-AWSSAMVersion),
     (Get-AWSSessionManagerVersion),
-    (Get-AlibabaCLIVersion),
+    (Get-AzureCLIVersion),
+    (Get-AzureDevopsExtVersion),
     (Get-CloudFoundryVersion),
-    (Get-HubVersion),
-    (Get-GHVersion)
+    (Get-GHVersion),
+    (Get-HubVersion)
+    ) | Sort-Object
 )
 
 $markdown += New-MDHeader "Rust Tools" -Level 3
-$markdown += New-MDList -Style Unordered -Lines @(
-    "Rust $(Get-RustVersion)"
+$markdown += New-MDList -Style Unordered -Lines (@(
+    "Rust $(Get-RustVersion)",
+    "Rustup $(Get-RustupVersion)",
+    "Cargo $(Get-RustCargoVersion)",
+    "Rustdoc $(Get-RustdocVersion)"
+    ) | Sort-Object
 )
+
 $markdown += New-MDHeader "Packages" -Level 4
-$markdown += New-MDList -Style Unordered -Lines @(
+$markdown += New-MDList -Style Unordered -Lines (@(
     (Get-BindgenVersion),
-    (Get-CbindgenVersion),
     (Get-CargoAuditVersion),
-    (Get-CargoOutdatedVersion)
+    (Get-CargoOutdatedVersion),
+    (Get-CbindgenVersion),
+    "Rustfmt $(Get-RustfmtVersion)",
+    "Clippy $(Get-RustClippyVersion)"
+    ) | Sort-Object
 )
 
 $markdown += New-MDHeader "Browsers and webdrivers" -Level 3
@@ -143,9 +154,22 @@ $markdown += New-MDList -Style Unordered -Lines @(
     (Get-SeleniumWebDriverVersion -Driver "iexplorer")
 )
 
+$markdown += New-MDHeader "Environment variables" -Level 4
+$markdown += Build-BrowserWebdriversEnvironmentTable | New-MDTable
+$markdown += New-MDNewLine
+
+$markdown += New-MDHeader "Java" -Level 3
+$markdown += Get-JavaVersions | New-MDTable
+$markdown += New-MDNewLine
+
+$markdown += New-MDHeader "Shells" -Level 3
+$markdown += Get-ShellTarget
+$markdown += New-MDNewLine
+
 $markdown += New-MDHeader "MSYS2" -Level 3
 $markdown += Get-PacmanVersion
 $markdown += New-MDNewLine
+$markdown += New-MDHeader "Notes:" -Level 5
 $markdown += @'
 ```
 Location: C:\msys64
@@ -154,6 +178,13 @@ Note: MSYS2 is pre-installed on image but not added to PATH.
 ```
 '@
 $markdown += New-MDNewLine
+
+if (Test-IsWin19)
+{
+    $markdown += New-MDHeader "BizTalk Server" -Level 3
+    $markdown += Get-BizTalkVersion
+    $markdown += New-MDNewLine
+}
 
 $markdown += New-MDHeader "Cached Tools" -Level 3
 $markdown += (Build-CachedToolsMarkdown)
@@ -164,13 +195,16 @@ $markdown += Build-DatabasesMarkdown
 $markdown += New-MDNewLine
 
 $markdown += New-MDHeader "Database tools" -Level 3
-$markdown += New-MDList -Style Unordered -Lines @(
+$markdown += New-MDList -Style Unordered -Lines (@(
     (Get-AzCosmosDBEmulatorVersion),
     (Get-DacFxVersion),
-    (Get-SQLPSVersion),
-    (Get-MySQLVersion)
+    (Get-MySQLVersion),
+    (Get-SQLPSVersion)
+    ) | Sort-Object
 )
 $markdown += New-MDNewLine
+
+$markdown += Build-WebServersSection
 
 $vs = Get-VisualStudioVersion
 $markdown += New-MDHeader "$($vs.Name)" -Level 3
@@ -232,6 +266,9 @@ $markdown += New-MDNewLine
 # Android section
 $markdown += New-MDHeader "Android" -Level 3
 $markdown += Build-AndroidTable | New-MDTable
+$markdown += New-MDNewLine
+$markdown += New-MDHeader "Environment variables" -Level 4
+$markdown += Build-AndroidEnvironmentTable | New-MDTable
 $markdown += New-MDNewLine
 
 # Docker images section

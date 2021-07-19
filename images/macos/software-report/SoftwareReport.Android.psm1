@@ -1,3 +1,5 @@
+Import-Module "$PSScriptRoot/../helpers/SoftwareReport.Helpers.psm1" -DisableNameChecking
+
 function Split-TableRowByColumns {
     param(
         [string] $Row
@@ -11,21 +13,13 @@ function Get-AndroidSDKRoot {
 
 function Get-AndroidSDKManagerPath {
     $androidSDKDir = Get-AndroidSDKRoot
-    return Join-Path $androidSDKDir "tools" "bin" "sdkmanager"
+    return Join-Path $androidSDKDir "cmdline-tools" "latest" "bin" "sdkmanager"
 }
 
 function Get-AndroidInstalledPackages {
     $androidSDKManagerPath = Get-AndroidSDKManagerPath
-    $androidSDKManagerList = Invoke-Expression "$androidSDKManagerPath --list --include_obsolete"
-    $androidInstalledPackages = @()
-    foreach($packageInfo in $androidSDKManagerList) {
-        if($packageInfo -Match "Available Packages:") {
-            break
-        }
-
-        $androidInstalledPackages += $packageInfo
-    }
-    return $androidInstalledPackages
+    $androidSDKManagerList = Invoke-Expression "$androidSDKManagerPath --list_installed"
+    return $androidSDKManagerList
 }
 
 function Get-AndroidPackages {
@@ -39,28 +33,40 @@ function Build-AndroidTable {
     $packageInfo = Get-AndroidInstalledPackages
     return @(
         @{
-            "Package" = "Android SDK Tools"
-            "Version" = Get-AndroidPackageVersions -PackageInfo $packageInfo -MatchedString "Android SDK Tools"
+            "Package" = "Android Command Line Tools"
+            "Version" = Get-AndroidCommandLineToolsVersion
         },
         @{
-            "Package" = "Android SDK Platforms"
-            "Version" = Get-AndroidPlatformVersions -PackageInfo $packageInfo
+            "Package" = "Android Emulator"
+            "Version" = Get-AndroidPackageVersions -PackageInfo $packageInfo -MatchedString "Android Emulator"
         },
         @{
             "Package" = "Android SDK Build-tools"
             "Version" = Get-AndroidBuildToolVersions -PackageInfo $packageInfo
         },
         @{
+            "Package" = "Android SDK Platforms"
+            "Version" = Get-AndroidPlatformVersions -PackageInfo $packageInfo
+        },       
+        @{
             "Package" = "Android SDK Platform-Tools"
             "Version" = Get-AndroidPackageVersions -PackageInfo $packageInfo -MatchedString "Android SDK Platform-Tools"
         },
         @{
-            "Package" = "Google APIs"
-            "Version" = Get-AndroidGoogleAPIsVersions -PackageInfo $packageInfo
+            "Package" = "Android SDK Tools"
+            "Version" = Get-AndroidPackageVersions -PackageInfo $packageInfo -MatchedString "Android SDK Tools"
         },
         @{
             "Package" = "Android Support Repository"
             "Version" = Get-AndroidPackageVersions -PackageInfo $packageInfo -MatchedString "Android Support Repository"
+        },
+        @{
+            "Package" = "CMake"
+            "Version" = Get-AndroidPackageVersions -PackageInfo $packageInfo -MatchedString "cmake"
+        },
+        @{
+            "Package" = "Google APIs"
+            "Version" = Get-AndroidGoogleAPIsVersions -PackageInfo $packageInfo
         },
         @{
             "Package" = "Google Play services"
@@ -71,21 +77,29 @@ function Build-AndroidTable {
             "Version" = Get-AndroidPackageVersions -PackageInfo $packageInfo -MatchedString "Google Repository"
         },
         @{
+            "Package" = "NDK"
+            "Version" = Get-AndroidNDKVersions
+        },
+        @{
             "Package" = "SDK Patch Applier v4"
             "Version" = Get-AndroidPackageVersions -PackageInfo $packageInfo -MatchedString "SDK Patch Applier v4"
-        },
-        @{
-            "Package" = "CMake"
-            "Version" = Get-AndroidPackageVersions -PackageInfo $packageInfo -MatchedString "cmake"
-        },
-        @{
-            "Package" = "NDK"
-            "Version" = Get-AndroidNDKVersions -PackageInfo $packageInfo
         }
     ) | Where-Object { $_.Version } | ForEach-Object {
         [PSCustomObject] @{
             "Package Name" = $_.Package
             "Version" = $_.Version
+        }
+    }
+}
+
+function Build-AndroidEnvironmentTable {
+    $androidVersions = Get-Item env:ANDROID_*	
+
+    $shoulddResolveLink = 'ANDROID_NDK_PATH', 'ANDROID_NDK_HOME', 'ANDROID_NDK_ROOT', 'ANDROID_NDK_LATEST_HOME'
+    return $androidVersions | Sort-Object -Property Name | ForEach-Object {
+        [PSCustomObject] @{
+            "Name" = $_.Name
+            "Value" = if ($shoulddResolveLink.Contains($_.Name )) { Get-PathWithLink($_.Value) } else {$_.Value}
         }
     }
 }
@@ -121,6 +135,13 @@ function Get-AndroidPlatformVersions {
     return ($versions -Join "<br>")
 }
 
+function Get-AndroidCommandLineToolsVersion {
+    $commandLineTools = Get-AndroidSDKManagerPath
+    (& $commandLineTools --version | Out-String).Trim() -match "(?<version>^(\d+\.){1,}\d+$)" | Out-Null
+    $commandLineToolsVersion = $Matches.Version
+    return $commandLineToolsVersion
+}
+
 function Get-AndroidBuildToolVersions {
     param (
         [Parameter(Mandatory)]
@@ -153,28 +174,24 @@ function Get-AndroidGoogleAPIsVersions {
 }
 
 function Get-AndroidNDKVersions {
-    param (
-        [Parameter(Mandatory)][AllowEmptyString()]
-        [string[]] $packageInfo
-    )
-
     $os = Get-OSVersion
-    $versions = @()
 
     if ($os.IsLessThanBigSur) {
         # Hardcode NDK 15 as a separate case since it is installed manually without sdk-manager (to none default location)
+        $versions = @()
         $versions += "15.2.4203891"
-
-        $ndkFolderPath = Join-Path (Get-AndroidSDKRoot) "ndk"
-        Get-ChildItem -Path $ndkFolderPath | ForEach-Object {
-            $versions += $_.Name
-        }
     }
 
-    $versions += $packageInfo | Where-Object { $_ -Match "ndk-bundle" } | ForEach-Object {
-        $packageInfoParts = Split-TableRowByColumns $_
-        return $packageInfoParts[1]
-    }
+    $ndkFolderPath = Join-Path (Get-AndroidSDKRoot) "ndk"
+    $versions += Get-ChildItem -Path $ndkFolderPath -Name
 
     return ($versions -Join "<br>")
+}
+
+function Get-IntelHaxmVersion {
+    kextstat | Where-Object { $_ -match "com.intel.kext.intelhaxm \((?<version>(\d+\.){1,}\d+)\)" } | Out-Null
+    return [PSCustomObject] @{
+        "Package Name" = "Intel HAXM"
+        "Version" = $Matches.Version
+    }
 }

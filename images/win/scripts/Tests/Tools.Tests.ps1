@@ -1,17 +1,5 @@
 Import-Module (Join-Path $PSScriptRoot "..\SoftwareReport\SoftwareReport.Common.psm1") -DisableNameChecking
 
-Describe "7-Zip" {
-    It "7z" {
-        "7z" | Should -ReturnZeroExitCode
-    }
-}
-
-Describe "AzCopy" {
-    It "AzCopy" {
-        "azcopy --version" | Should -ReturnZeroExitCode
-    }
-}
-
 Describe "Azure Cosmos DB Emulator" {
     $cosmosDbEmulatorRegKey = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" | Get-ItemProperty | Where-Object { $_.DisplayName -eq 'Azure Cosmos DB Emulator' }
     $installDir = $cosmosDbEmulatorRegKey.InstallLocation
@@ -32,12 +20,6 @@ Describe "Bazel" {
         @{ ToolName = "bazelisk" }
     ) {
         "$ToolName --version"| Should -ReturnZeroExitCode
-    }
-}
-
-Describe "CMake" {
-    It "cmake" {
-        "cmake --version" | Should -ReturnZeroExitCode
     }
 }
 
@@ -64,46 +46,11 @@ Describe "DACFx" {
         "${sqlPackagePath}" | Should -Exist
         "${sqlLocalDBPath}" | Should -Exist
     }
- }
-
-Describe "Docker" {
-    It "<ToolName>" -TestCases @(
-        @{ ToolName = "docker" }
-        @{ ToolName = "docker-compose" }
-    ) {
-        "$ToolName --version"| Should -ReturnZeroExitCode
-    }
-
-    It "Helm" {
-        "helm version --short" | Should -ReturnZeroExitCode
-    }
-}
-
-Describe "Kind" {
-    It "Kind" {
-        "kind version" | Should -ReturnZeroExitCode
-    }
 }
 
 Describe "DotnetTLS" {
     It "Tls 1.2 is enabled" {
         [Net.ServicePointManager]::SecurityProtocol -band "Tls12" | Should -Be Tls12
-    }
-}
-
-Describe "Jq" {
-    It "Jq" {
-        "jq -n ." | Should -ReturnZeroExitCode
-    }
-}
-
-Describe "Julia" {
-    It "Julia path exists" {
-        "C:\Julia" | Should -Exist
-    }
-
-    It "Julia" {
-        "julia --version" | Should -ReturnZeroExitCode
     }
 }
 
@@ -113,9 +60,17 @@ Describe "Mercurial" {
     }
 }
 
-Describe "KubernetesCli" {
+Describe "KubernetesTools" {
+    It "Kind" {
+        "kind version" | Should -ReturnZeroExitCode
+    }
+
     It "kubectl" {
         "kubectl version --client=true --short=true" | Should -ReturnZeroExitCode
+    }
+
+    It "Helm" {
+        "helm version --short" | Should -ReturnZeroExitCode
     }
 
     It "minikube" {
@@ -130,12 +85,6 @@ Describe "Mingw64" {
         @{ ToolName = "make" }
     ) {
         "$ToolName --version" | Should -ReturnZeroExitCode
-    }
-}
-
-Describe "InnoSetup" {
-    It "InnoSetup" {
-        (Get-Command -Name iscc).CommandType | Should -BeExactly "Application"
     }
 }
 
@@ -162,30 +111,6 @@ Describe "NSIS" {
     }
 }
 
-Describe "Nuget" {
-    It "Nuget" {
-       "nuget" | Should -ReturnZeroExitCode
-    }
-}
-
-Describe "OpenSSL" {
-    It "OpenSSL" {
-       "openssl version" | Should -ReturnZeroExitCode
-    }
-}
-
-Describe "Packer" {
-    It "Packer" {
-       "packer --version" | Should -ReturnZeroExitCode
-    }
-}
-
-Describe "Perl" {
-    It "Perl" {
-       "perl --version" | Should -ReturnZeroExitCode
-    }
-}
-
 Describe "PowerShell Core" {
     It "pwsh" {
         "pwsh --version" | Should -ReturnZeroExitCode
@@ -193,12 +118,6 @@ Describe "PowerShell Core" {
 
     It "Execute 2+2 command" {
         pwsh -Command "2+2" | Should -BeExactly 4
-    }
-}
-
-Describe "Pulumi" {
-    It "pulumi" {
-       "pulumi version" | Should -ReturnZeroExitCode
     }
 }
 
@@ -211,12 +130,6 @@ Describe "Sbt" {
 Describe "ServiceFabricSDK" {
     It "PowerShell Module" {
         Get-Module -Name ServiceFabric -ListAvailable | Should -Not -BeNullOrEmpty
-    }
-}
-
-Describe "Svn" {
-    It "svn" {
-        "svn --version --quiet" | Should -ReturnZeroExitCode
     }
 }
 
@@ -243,12 +156,6 @@ Describe "Vcpkg" {
 
     It "VCPKG_INSTALLATION_ROOT directory" {
         $env:VCPKG_INSTALLATION_ROOT | Should -Exist
-    }
-}
-
-Describe "VSWhere" {
-    It "vswhere" {
-        "vswhere" | Should -ReturnZeroExitCode
     }
 }
 

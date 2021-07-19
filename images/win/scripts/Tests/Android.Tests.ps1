@@ -5,13 +5,19 @@ Describe "Android SDK" {
     $androidPackages = Get-AndroidPackages -AndroidSDKManagerPath (Get-AndroidSDKManagerPath)
     $androidInstalledPackages = Get-AndroidInstalledPackages
 
+    $ndkLTSMajorVersion = $androidToolset.ndk.lts
+    $ndkLatestMajorVersion = $androidToolset.ndk.latest
+
     $platformTestCases = @()
     [int]$platformMinVersion = $androidToolset.platform_min_version
-    $platformList = Get-AndroidPackagesByVersion -AndroidPackages $androidPackages `
+    $platformListByVersion = Get-AndroidPackagesByVersion -AndroidPackages $androidPackages `
                     -PrefixPackageName "platforms;" `
                     -MinimumVersion $platformMinVersion `
                     -Delimiter "-" `
                     -Index 1
+    $platformListByName = Get-AndroidPackagesByName -AndroidPackages $androidPackages `
+                    -PrefixPackageName "platforms;" | Where-Object {$_ -match "-\D+$"}
+    $platformList = $platformListByVersion + $platformListByName 
     $platformList | ForEach-Object {
         $platformTestCases += @{ platformVersion = $_; installedPackages = $androidInstalledPackages }
     }
@@ -45,25 +51,52 @@ Describe "Android SDK" {
         $additionalToolsTestCases += @{ additionalToolVersion = $_; installedPackages = $androidInstalledPackages }
     }
 
-    It "Platform version <platformVersion> is installed" -TestCases $platformTestCases {
-        "$installedPackages" | Should -Match "$platformVersion"
+    Context "SDKManagers" {
+        $testCases = @(
+            @{
+                PackageName = "SDK tools"
+                Sdkmanager = "$env:ANDROID_HOME\tools\bin\sdkmanager.bat"
+            },
+            @{
+                PackageName = "Command-line tools"
+                Sdkmanager = "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"
+            }
+        )
+
+        It "Sdkmanager from <PackageName> is available" -TestCases $testCases {
+            "$Sdkmanager --list" | Should -ReturnZeroExitCode
+        }
     }
 
-    It "Platform build tools <buildToolsVersion> is installed" -TestCases $buildToolsTestCases {
-        "$installedPackages" | Should -Match "$buildToolsVersion"
-    }
-
-    if (Test-IsWin19) {
-        It "Extra package <extraPackage> is installed" -TestCases $extraPackagesTestCases {
-            "$installedPackages" | Should -Match "extras;$extraPackage"
+    Context "Packages" {
+        It "Platform version <platformVersion> is installed" -TestCases $platformTestCases {
+            "$installedPackages" | Should -Match "$platformVersion"
         }
 
-        It "Addon package <addonPackage> is installed" -TestCases $addonsTestCases {
-            "$installedPackages" | Should -Match "add-ons;$addonPackage"
+        It "Platform build tools <buildToolsVersion> is installed" -TestCases $buildToolsTestCases {
+            "$installedPackages" | Should -Match "$buildToolsVersion"
         }
-    }
 
-    It "Additional tool <additionalToolVersion> is installed" -TestCases $additionalToolsTestCases {
-        "$installedPackages" | Should -Match $additionalToolVersion
+        if (Test-IsWin19) {
+            It "Extra package <extraPackage> is installed" -TestCases $extraPackagesTestCases {
+                "$installedPackages" | Should -Match "extras;$extraPackage"
+            }
+
+            It "Addon package <addonPackage> is installed" -TestCases $addonsTestCases {
+                "$installedPackages" | Should -Match "add-ons;$addonPackage"
+            }
+        }
+
+        It "Additional tool <additionalToolVersion> is installed" -TestCases $additionalToolsTestCases {
+            "$installedPackages" | Should -Match $additionalToolVersion
+        }
+
+        It "LTS NDK is installed" -TestCases @(@{ ndkLTSVersion = $ndkLTSMajorVersion; installedPackages = $androidInstalledPackages }) {
+            "$installedPackages" | Should -Match "ndk;$ndkLTSVersion"
+        }
+
+        It "Latest NDK is installed" -TestCases @(@{ ndkLatestVersion = $ndkLatestMajorVersion; installedPackages = $androidInstalledPackages }) {
+            "$installedPackages" | Should -Match "ndk;$ndkLatestVersion"
+        }
     }
 }

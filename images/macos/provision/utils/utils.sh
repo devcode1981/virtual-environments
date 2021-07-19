@@ -10,24 +10,29 @@ download_with_retries() {
     local COMPRESSED="$4"
 
     if [[ $COMPRESSED == "compressed" ]]; then
-        COMMAND="curl $URL -4 -sL --compressed -o '$DEST/$NAME'"
+        local COMMAND="curl $URL -4 -sL --compressed -o '$DEST/$NAME' -w '%{http_code}'"
     else
-        COMMAND="curl $URL -4 -sL -o '$DEST/$NAME'"
+        local COMMAND="curl $URL -4 -sL -o '$DEST/$NAME' -w '%{http_code}'"
     fi
 
-    echo "Downloading $URL..."
+    echo "Downloading '$URL' to '${DEST}/${NAME}'..."
     retries=20
     interval=30
     while [ $retries -gt 0 ]; do
         ((retries--))
-        eval $COMMAND
-        if [ $? != 0 ]; then
-            echo "Unable to download $URL, next attempt in $interval sec, $retries attempts left"
-            sleep $interval
-        else
-            echo "$URL was downloaded successfully to $DEST/$NAME"
+        # Temporary disable exit on error to retry on non-zero exit code
+        set +e
+        http_code=$(eval $COMMAND)
+        exit_code=$?
+        if [ $http_code -eq 200 ] && [ $exit_code -eq 0 ]; then
+            echo "Download completed"
             return 0
+        else
+            echo "Error — Either HTTP response code for '$URL' is wrong - '$http_code' or exit code is not 0 - '$exit_code'. Waiting $interval seconds before the next attempt, $retries attempts left"
+            sleep 30
         fi
+        # Enable exit on error back
+        set -e
     done
 
     echo "Could not download $URL"
@@ -92,18 +97,6 @@ get_toolset_value() {
     echo "$(jq -r "$query" $toolset_path)"
 }
 
-get_xcode_list_from_toolset() {
-    echo $(get_toolset_value '.xcode.versions | reverse | .[]')
-}
-
-get_latest_xcode_from_toolset() {
-    echo $(get_toolset_value '.xcode.versions[0]')
-}
-
-get_default_xcode_from_toolset() {
-    echo $(get_toolset_value '.xcode.default')
-}
-
 verlte() {
     sortedVersion=$(echo -e "$1\n$2" | sort -V | head -n1)
     [  "$1" = "$sortedVersion" ]
@@ -116,8 +109,67 @@ brew_cask_install_ignoring_sha256() {
     chmod a+w "$CASK_DIR/$TOOL_NAME.rb"
     SHA=$(grep "sha256" "$CASK_DIR/$TOOL_NAME.rb" | awk '{print $2}')
     sed -i '' "s/$SHA/:no_check/" "$CASK_DIR/$TOOL_NAME.rb"
-    brew cask install $TOOL_NAME
+    brew install --cask $TOOL_NAME
     pushd $CASK_DIR
     git checkout HEAD -- "$TOOL_NAME.rb"
     popd
+}
+
+get_brew_os_keyword() {
+    if is_HighSierra; then
+        echo "high_sierra"
+    elif is_Mojave; then
+        echo "mojave"
+    elif is_Catalina; then
+        echo "catalina"
+    elif is_BigSur; then
+        echo "big_sur"
+    else
+        echo "null"
+    fi
+}
+
+should_build_from_source() {
+    local tool_name=$1
+    local os_name=$2
+    local tool_info=$(brew info --json=v1 $tool_name)
+    local bottle_disabled=$(echo "$tool_info" | jq ".[0].bottle_disabled")
+
+    # No need to build from source if a bottle is disabled
+    # Use the simple 'brew install' command to download a package
+    if $bottle_disabled; then
+        echo "false"
+        return
+    fi
+
+    local tool_bottle=$(echo "$tool_info" | jq ".[0].bottle.stable.files.$os_name")
+    if [[ "$tool_bottle" == "null" ]]; then
+        echo "true"
+        return
+    else
+        echo "false"
+        return
+    fi
+}
+
+# brew provides package bottles for different macOS versions
+# The 'brew install' command will fail if a package bottle does not exist
+# Use the '--build-from-source' option to build from source in this case
+brew_smart_install() {
+    local tool_name=$1
+    
+    local os_name=$(get_brew_os_keyword)
+    if [[ "$os_name" == "null" ]]; then
+        echo "$OSTYPE is unknown operating system"
+        exit 1
+    fi
+
+    local build_from_source=$(should_build_from_source "$tool_name" "$os_name")
+    if $build_from_source; then
+        echo "Bottle of the $tool_name for the $os_name was not found. Building $tool_name from source..."
+        brew install --build-from-source $tool_name
+    else
+        echo "Downloading $tool_name..."
+        brew install $tool_name
+    fi
 }
